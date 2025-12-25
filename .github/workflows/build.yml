@@ -99,7 +99,7 @@ jobs:
             Build Date: ${{ github.event_name == 'workflow_dispatch' && github.event.repository.updated_at || '' }}
           files: |
             ./*.iso
-            ./*.dmg
+            ./*.dmg.iso
           draft: false
           prerelease: false
         env:
