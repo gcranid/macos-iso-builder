@@ -31,9 +31,16 @@ on:
           - 'iso'
           - 'dmg'
 
+# jobs:
+  # build-installer:
+    # runs-on: macos-15-intel
+    # timeout-minutes: 70
+
 jobs:
   build-installer:
     runs-on: macos-15-intel
+    permissions:
+      contents: write  # needed to create releases
     timeout-minutes: 70
 
     steps:
@@ -80,6 +87,23 @@ jobs:
           path: ./*.dmg.iso
           compression-level: 0
           retention-days: 7
+      - name: Create GitHub Release
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.macos_version }}-${{ github.run_id }}
+          name: macOS ${{ github.event.inputs.macos_version }} Installer
+          body: |
+            Automated build of macOS ${{ github.event.inputs.macos_version }} installer.
+            Format: ${{ github.event.inputs.image_format }}
+            Build Date: ${{ github.event_name == 'workflow_dispatch' && github.event.repository.updated_at || '' }}
+          files: |
+            ./*.iso
+            ./*.dmg
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
         if: always()
