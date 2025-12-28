@@ -37,7 +37,7 @@ on:
     # timeout-minutes: 70
 
 jobs:
-  build-installer:
+  build-macos-installer-image:
     runs-on: macos-15-intel
     permissions:
       contents: write  # needed to create releases
@@ -51,27 +51,27 @@ jobs:
         run: |
           echo "Runner OS: $(sw_vers -productName) $(sw_vers -productVersion)"
           echo "Architecture: $(uname -m)"
-          echo "Available disk space:"
-          df -h
-          echo "Memory:"
-          top -l 1 | grep PhysMem
-          echo "CPU model:"
-          sysctl -a | grep dep.cpu.brand_string
+          echo ""
+          df -h $(mktemp)
+          echo ""
+          echo "RAM: $(top -l 1 | grep PhysMem)"
+          echo ""
+          echo "CPU: $(sysctl -n machdep.cpu.brand_string)"
 
       - name: Create macOS image
         id: create_image
         continue-on-error: true
         run: |
           if [ "${{ github.event.inputs.image_format }}" == "iso" ]; then
-            sudo bash mkmaciso "${{ github.event.inputs.macos_version }}"
+            sudo bash mkmaciso "${{ github.event.inputs.macos_version }}" iso
             echo "image_name=$(basename *.iso)" >> $GITHUB_OUTPUT
           else
             sudo bash mkmaciso "${{ github.event.inputs.macos_version }}" dmg
-            echo "image_name=$(basename *.dmg.iso)" >> $GITHUB_OUTPUT
+            echo "image_name=$(basename *.dmg.img)" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload ISO artifact
-        if: github.event.inputs.image_format == 'iso'
+        if: github.event.inputs.image_format == 'iso' && steps.create_image.outcome == 'success'
         uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.create_image.outputs.image_name }}
@@ -80,11 +80,11 @@ jobs:
           retention-days: 7
 
       - name: Upload DMG artifact
-        if: github.event.inputs.image_format == 'dmg'
+        if: github.event.inputs.image_format == 'dmg' && steps.create_image.outcome == 'success'
         uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.create_image.outputs.image_name }}
-          path: ./*.dmg.iso
+          path: ./*.dmg.img
           compression-level: 0
           retention-days: 7
 
@@ -101,7 +101,7 @@ jobs:
               echo "## Successfully built $(basename *.iso)" >> $GITHUB_STEP_SUMMARY
               echo "Note: This ISO image is intended for create macOS virtual machine on Proxmox VE, QEMU, VMware, and VirtualBox." >> $GITHUB_STEP_SUMMARY
             else
-              echo "## Successfully built $(basename *.dmg.iso)" >> $GITHUB_STEP_SUMMARY
+              echo "## Successfully built $(basename *.dmg.img)" >> $GITHUB_STEP_SUMMARY
               echo "> [!NOTE]" >> $GITHUB_STEP_SUMMARY
               echo '> This DMG image is intended for flash to USB drive using [Rufus](https://rufus.ie/en/#download) (Windows) or dd (Linux)' >> $GITHUB_STEP_SUMMARY
               echo '> Can also be used with virtual machines (require convert to `.vhd` for Hyper-V or `.vmdk` for VMware)' >> $GITHUB_STEP_SUMMARY
