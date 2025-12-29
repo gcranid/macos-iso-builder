@@ -1,3 +1,7 @@
+#
+# build-installer.yml
+#
+
 name: Build macOS Installer ISO/DMG image
 
 on:
@@ -8,21 +12,21 @@ on:
         required: true
         type: choice
         options:
-          - 'Tahoe'
-          - 'Sequoia'
-          - 'Sonoma'
-          - 'Ventura'
-          - 'Monterey'
-          - 'Big Sur'
-          - 'Catalina'
-          - 'Mojave'
-          - 'High Sierra'
-          - 'Sierra'
-          - 'El Capitan'
-          - 'Yosemite'
-          - 'Mavericks'
-          - 'Mountain Lion'
-          - 'Lion'
+          - 'Tahoe' # 26.2
+          - 'Sequoia' # 15.7.3
+          - 'Sonoma' # 14.8.3
+          - 'Ventura' # 13.7.8
+          - 'Monterey' # 12.7.6
+          - 'Big Sur' # 11.7.10
+          - 'Catalina' # 10.15.7
+          - 'Mojave' # 10.14.6
+          - 'High Sierra' # 10.13.6
+          - 'Sierra' # 10.12.6
+          - 'El Capitan' # 10.11.6
+          - 'Yosemite' # 10.10.5
+          - 'Mavericks' # 10.9.5
+          - 'Mountain Lion' # 10.8.5
+          - 'Lion' # 10.7.5
       image_format:
         description: 'Select image format: iso for virtual machines, dmg for flash to USB drive'
         required: true
@@ -31,16 +35,9 @@ on:
           - 'iso'
           - 'dmg'
 
-# jobs:
-  # build-installer:
-    # runs-on: macos-15-intel
-    # timeout-minutes: 70
-
 jobs:
   build-macos-installer-image:
     runs-on: macos-15-intel
-    permissions:
-      contents: write  # needed to create releases
     timeout-minutes: 70
 
     steps:

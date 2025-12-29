@@ -1,3 +1,7 @@
+#
+# build-recovery.yml
+#
+
 name: Build macOS Recovery ISO image
 
 on:
@@ -8,17 +12,23 @@ on:
         required: true
         type: choice
         options:
-          - 'Tahoe'
-          - 'Sequoia'
-          - 'Sonoma'
-          - 'Ventura'
-          - 'Monterey'
-          - 'Big Sur'
-          - 'Catalina'
-          - 'Mojave'
-          - 'High Sierra'
+          - 'Tahoe' # 26.2
+          - 'Sequoia' # 15.7.3
+          - 'Sonoma' # 14.8.3
+          - 'Ventura' # 13.7.8
+          - 'Monterey' # 12.7.6
+          - 'Big Sur' # 11.7.10
+          - 'Catalina' # 10.15.7
+          - 'Mojave' # 10.14.6
+          - 'High Sierra' # 10.13.6
+          - 'Sierra' # 10.12.6
+          - 'El Capitan' # 10.11.6
+          - 'Yosemite' # 10.10.5
+          - 'Mavericks' # 10.9.5
+          - 'Mountain Lion' # 10.8.5
+          - 'Lion' # 10.7.5
       release_tag:
-        description: 'Optional: tag the build (e.g., v10.15) to upload it to Releases for long-term storage'
+        description: 'Optional: tag the build (e.g., v10.15.7) to upload it to Releases for long-term storage'
         required: false
         type: string
 
@@ -28,17 +38,28 @@ jobs:
     permissions:
       contents: write  # needed to create releases
     timeout-minutes: 15
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
 
       - name: System Information
         run: |
-          echo "Runner OS: $(sw_vers -productName) $(sw_vers -productVersion)"
+          echo "========== SYSTEM INFORMATION =========="
+          echo ""
+          echo "Triggered by: ${{ github.event_name }}"
+          echo ""
+          echo "Running on: ${{ runner.os }}"
+          echo ""
+          echo "Branch: ${{ github.ref_name }}"
+          echo ""
+          echo "Repository: ${{ github.repository }}"
+          echo ""
           echo "Architecture: $(uname -m)"
+          echo ""
           echo "Available disk space:"
           df -h
+          echo ""
           echo "Python version:"
           python3 --version
 
@@ -69,7 +90,7 @@ jobs:
             "Sequoia") KEY="sequoia" ;;
             "Tahoe") KEY="tahoe" ;;
           esac
-          
+
           case $KEY in
             lion1) INFO="Mac-2E6FAB96566FE58C:00000000000F25Y00:Lion:" ;;
             mountain_lion) INFO="Mac-7DF2A3B5E5D671ED:00000000000F65100:Mountain_Lion:" ;;
@@ -87,14 +108,14 @@ jobs:
             sequoia) INFO="Mac-7BA5B2D9E42DDD94:00000000000000000:Sequoia:" ;;
             tahoe) INFO="Mac-CFF7D910A743CAAF:00000000000000000:Tahoe:latest" ;;
           esac
-          
+
           IFS=':' read -r BOARD_ID MODEL VERSION_NAME OS_FLAG <<< "$INFO"
-          
+
           echo "board_id=$BOARD_ID" >> $GITHUB_OUTPUT
           echo "model=$MODEL" >> $GITHUB_OUTPUT
           echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
           echo "os_flag=$OS_FLAG" >> $GITHUB_OUTPUT
-          
+
           echo "Board ID: $BOARD_ID"
           echo "Model: $MODEL"
           echo "Version Name: $VERSION_NAME"
@@ -103,13 +124,13 @@ jobs:
       - name: Download macOS Recovery
         run: |
           echo "Downloading macOS ${{ steps.version_info.outputs.version_name }} recovery..."
-          
+
           if [ -n "${{ steps.version_info.outputs.os_flag }}" ]; then
             script -q /dev/null python3 macrecovery.py -b "${{ steps.version_info.outputs.board_id }}" -m "${{ steps.version_info.outputs.model }}" -os "${{ steps.version_info.outputs.os_flag }}" download
           else
             script -q /dev/null python3 macrecovery.py -b "${{ steps.version_info.outputs.board_id }}" -m "${{ steps.version_info.outputs.model }}" download
           fi
-          
+
           echo "Download completed. Checking files..."
           ls -la com.apple.recovery.boot/
 
@@ -117,7 +138,7 @@ jobs:
         id: recovery_file
         run: |
           VERSION_NAME="${{ steps.version_info.outputs.version_name }}"
-          
+
           case $VERSION_NAME in
             Lion|Mountain_Lion|Mavericks|Yosemite|El_Capitan|Sierra)
               RECOVERY_FILE="RecoveryImage.dmg"
@@ -126,10 +147,10 @@ jobs:
               RECOVERY_FILE="BaseSystem.dmg"
               ;;
           esac
-          
+
           echo "recovery_file=$RECOVERY_FILE" >> $GITHUB_OUTPUT
           echo "Recovery file will be: $RECOVERY_FILE"
-          
+
           if [ ! -f "com.apple.recovery.boot/$RECOVERY_FILE" ]; then
             echo "Error: Recovery image not found at: com.apple.recovery.boot/$RECOVERY_FILE"
             echo "Available files:"
@@ -145,7 +166,7 @@ jobs:
           ISO_NAME="macOS_${VERSION_NAME}_Recovery"
           ISO_FILE="${GITHUB_WORKSPACE}/${ISO_NAME}.iso"
           RECOVERY_PATH="com.apple.recovery.boot/$RECOVERY_FILE"
-          
+
           case $VERSION_NAME in
             Lion|Mountain_Lion|Mavericks)
               HDIUTIL_OPTS="-hfs -iso -joliet"
@@ -154,13 +175,13 @@ jobs:
               HDIUTIL_OPTS="-hfs -udf"
               ;;
           esac
-          
+
           echo "Creating bootable ISO with options: $HDIUTIL_OPTS"
           echo "Input: $RECOVERY_PATH"
           echo "Output: $ISO_FILE"
-          
+
           sudo hdiutil makehybrid $HDIUTIL_OPTS -default-volume-name "${VERSION_NAME}_Recovery" -o "$ISO_FILE" "$RECOVERY_PATH"
-          
+
           if [ -f "$ISO_FILE" ]; then
             ISO_SIZE=$(du -h "$ISO_FILE" | cut -f1)
             echo "ISO created successfully!"
@@ -192,30 +213,6 @@ jobs:
           path: ${{ steps.compress_iso.outputs.compressed_file }}
           compression-level: 0
           retention-days: 7
-
-      - name: Sanitize release tag
-        id: sanitize_tag
-        if: github.event.inputs.release_tag != ''
-        run: |
-          tag="${{ github.event.inputs.release_tag }}"
-    
-          # Replace spaces and other invalid characters with hyphens
-          # Keep only alphanumeric, dots, hyphens, and underscores
-          sanitized_tag=$(echo "$tag" | sed 's/[^a-zA-Z0-9._-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
-          echo "sanitized_tag=$sanitized_tag" >> $GITHUB_OUTPUT
-
-      - name: Create Release
-        if: github.event.inputs.release_tag != ''
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-        run: |
-          title="macOS ${{ steps.version_info.outputs.version_name }} Recovery"
-          tag="${{ steps.sanitize_tag.outputs.sanitized_tag }}"
-
-          gh release create $tag \
-            --title "$title" \
-            ${{ steps.compress_iso.outputs.compressed_file }}
 
       - name: Summary
         if: always()
